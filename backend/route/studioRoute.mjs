@@ -1,19 +1,22 @@
 import express from 'express';
 import {
+    upload,
     getSemuaStudio,
     getStudioById,
     tambahStudio,
     updateStudio,
-    hapusStudio
+    hapusStudio,
+    getStudios
 } from '../controller/studioController.mjs';
 
 const router = express.Router();
 
-// Route Publik & Admin untuk Studio
-router.get('/', getSemuaStudio);            // GET http://localhost:3000/api/studio
-router.get('/:id', getStudioById);          // GET http://localhost:3000/api/studio/1
-router.post('/', tambahStudio);             // POST http://localhost:3000/api/studio
-router.put('/:id', updateStudio);           // PUT http://localhost:3000/api/studio/1
-router.delete('/:id', hapusStudio);         // DELETE http://localhost:3000/api/studio/1
+// Route Publik & Admin untuk Studio dengan Middleware Upload Multer
+router.get('/', getSemuaStudio);
+router.get('/studios', getStudios);
+router.get('/:id', getStudioById);
+router.post('/', upload.single('image'), tambahStudio);
+router.put('/:id', upload.single('image'), updateStudio);
+router.delete('/:id', hapusStudio);
 
 export default router;

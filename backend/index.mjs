@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import studioRoute from './route/studioRoute.mjs';
 import bookingRoute from './route/bookingRoute.mjs';
+import adminRoute from './route/adminRoute.mjs';
 
 dotenv.config();
 
@@ -16,6 +17,7 @@ app.use(express.json());
 // Daftarkan Endpoint API
 app.use('/api/studio', studioRoute);
 app.use('/api/booking', bookingRoute);
+app.use('/api/admin', adminRoute);
 
 app.get('/', (req, res) => {
     res.json({ message: 'API Studio Booking Berjalan!' });

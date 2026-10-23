@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import API from '../services/api';
 
 export default function AdminDashboard() {
+    const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('bookings'); // 'bookings' atau 'studios'
 
     // State Bookings
@@ -11,18 +13,30 @@ export default function AdminDashboard() {
     const [studios, setStudios] = useState([]);
     const [showStudioModal, setShowStudioModal] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
+
+    // Perhatikan: image diubah menjadi null untuk menampung file objek lokal
     const [studioForm, setStudioForm] = useState({
         id: '',
         name: '',
         description: '',
         capacity: '',
         price_per_hour: '',
-        image_url: '',
+        image: null,
         status: 'active'
     });
 
     const [loading, setLoading] = useState(true);
     const [message, setMessage] = useState(null);
+
+    // 1. Validasi Autentikasi Admin saat Halaman Dimuat
+    useEffect(() => {
+        const token = localStorage.getItem('adminToken');
+        if (!token) {
+            navigate('/');
+            return;
+        }
+        fetchData();
+    }, [navigate]);
 
     // Fetch Data
     const fetchData = async () => {
@@ -41,9 +55,12 @@ export default function AdminDashboard() {
         }
     };
 
-    useEffect(() => {
-        fetchData();
-    }, []);
+    // Handler Logout Admin
+    const handleLogout = () => {
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminUser');
+        navigate('/');
+    };
 
     // Handler Status Booking
     const handleStatusChange = async (id, newStatus) => {
@@ -57,15 +74,33 @@ export default function AdminDashboard() {
         }
     };
 
-    // Handler Submit Studio (Create & Update)
+    // Handler Submit Studio Menggunakan FormData (Create & Update)
     const handleStudioSubmit = async (e) => {
         e.preventDefault();
         try {
+            const formData = new FormData();
+            formData.append('name', studioForm.name);
+            formData.append('description', studioForm.description);
+            formData.append('capacity', studioForm.capacity);
+            formData.append('price_per_hour', studioForm.price_per_hour);
+            formData.append('status', studioForm.status);
+
+            // Lampirkan file gambar jika admin memilih file baru
+            if (studioForm.image) {
+                formData.append('image', studioForm.image);
+            }
+
+            const config = {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            };
+
             if (isEditing) {
-                await API.put(`/studio/${studioForm.id}`, studioForm);
+                await API.put(`/studio/${studioForm.id}`, formData, config);
                 setMessage('Studio berhasil diperbarui!');
             } else {
-                await API.post('/studio', studioForm);
+                await API.post('/studio', formData, config);
                 setMessage('Studio baru berhasil ditambahkan!');
             }
             setShowStudioModal(false);
@@ -93,7 +128,15 @@ export default function AdminDashboard() {
     };
 
     const openEditStudio = (studio) => {
-        setStudioForm(studio);
+        setStudioForm({
+            id: studio.id,
+            name: studio.name,
+            description: studio.description,
+            capacity: studio.capacity,
+            price_per_hour: studio.price_per_hour,
+            image: null, // Reset input file saat edit, biarkan backend pakai gambar lama jika tidak diubah
+            status: studio.status
+        });
         setIsEditing(true);
         setShowStudioModal(true);
     };
@@ -111,7 +154,7 @@ export default function AdminDashboard() {
             description: '',
             capacity: '',
             price_per_hour: '',
-            image_url: '',
+            image: null,
             status: 'active'
         });
     };
@@ -152,19 +195,29 @@ export default function AdminDashboard() {
                         </p>
                     </div>
 
-                    {/* Tab Navigation */}
-                    <div className="flex bg-gray-200 dark:bg-gray-900 p-1.5 rounded-2xl gap-2">
+                    <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
+                        {/* Tab Navigation */}
+                        <div className="flex bg-gray-200 dark:bg-gray-900 p-1.5 rounded-2xl gap-2">
+                            <button
+                                onClick={() => setActiveTab('bookings')}
+                                className={`px-4 py-2 rounded-xl font-semibold text-xs sm:text-sm transition cursor-pointer ${activeTab === 'bookings' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
+                            >
+                                📦 Pesanan ({bookings.length})
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('studios')}
+                                className={`px-4 py-2 rounded-xl font-semibold text-xs sm:text-sm transition cursor-pointer ${activeTab === 'studios' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
+                            >
+                                📸 Studio ({studios.length})
+                            </button>
+                        </div>
+
+                        {/* Tombol Logout */}
                         <button
-                            onClick={() => setActiveTab('bookings')}
-                            className={`px-5 py-2.5 rounded-xl font-semibold text-sm transition cursor-pointer ${activeTab === 'bookings' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
+                            onClick={handleLogout}
+                            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-semibold transition shadow-md cursor-pointer flex items-center gap-1.5"
                         >
-                            📦 Kelola Pesanan ({bookings.length})
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('studios')}
-                            className={`px-5 py-2.5 rounded-xl font-semibold text-sm transition cursor-pointer ${activeTab === 'studios' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
-                        >
-                            📸 Kelola Studio ({studios.length})
+                            🚪 Keluar
                         </button>
                     </div>
                 </div>
@@ -283,9 +336,9 @@ export default function AdminDashboard() {
                                                 {studio.image_url}
                                             </td>
                                             <td className="py-4 px-6">
-                                                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${studio.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300'}`}>
-                                                        {studio.status.toUpperCase()}
-                                                    </span>
+                                                <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${studio.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300'}`}>
+                                                    {studio.status.toUpperCase()}
+                                                </span>
                                             </td>
                                             <td className="py-4 px-6 text-center space-x-2">
                                                 <button
@@ -310,7 +363,7 @@ export default function AdminDashboard() {
                     </div>
                 )}
 
-                {/* MODAL FORM TAMBAH / EDIT STUDIO */}
+                {/* MODAL FORM TAMBAH / EDIT STUDIO DENGAN INPUT FILE LOKAL */}
                 {showStudioModal && (
                     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
                         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl max-w-lg w-full p-8 shadow-2xl">
@@ -318,7 +371,7 @@ export default function AdminDashboard() {
                                 {isEditing ? 'Edit Data Studio' : 'Tambah Studio Baru'}
                             </h2>
                             <p className="text-xs text-gray-500 dark:text-gray-400 mb-6">
-                                Pastikan nama file gambar sesuai dengan file yang ada di folder public/images/.
+                                {isEditing ? 'Edit informasi studio dan ganti gambar jika perlu.' : 'Pilih file gambar dari komputer Anda untuk studio baru.'}
                             </p>
 
                             <form onSubmit={handleStudioSubmit} className="space-y-4">
@@ -358,15 +411,14 @@ export default function AdminDashboard() {
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Nama File Gambar (di public/images/)</label>
+                                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Pilih Gambar Studio (File Lokal)</label>
                                     <input
-                                        type="text"
-                                        required
-                                        value={studioForm.image_url}
-                                        onChange={(e) => setStudioForm({...studioForm, image_url: e.target.value})}
-                                        className="w-full px-4 py-3 text-sm border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                        placeholder="studio-c.jpg"
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={(e) => setStudioForm({...studioForm, image: e.target.files[0]})}
+                                        className="w-full px-4 py-2.5 text-sm border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer"
                                     />
+                                    <span className="text-[10px] text-gray-400 mt-1 block">Format didukung: JPG, PNG, JPEG.</span>
                                 </div>
                                 <div>
                                     <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Deskripsi Fasilitas</label>

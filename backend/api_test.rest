@@ -56,3 +56,15 @@ Content-Type: application/json
 {
   "payment_status": "confirmed"
 }
+
+### 10. Ambil semua data pengguna
+GET http://localhost:3000/api/admin
+
+### 11. Login Admin
+POST http://localhost:3000/api/admin/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "admin1"
+}

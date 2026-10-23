@@ -3,7 +3,8 @@ import {
     buatBooking,
     lacakBooking,
     getSemuaBooking,
-    updateStatusPembayaran
+    updateStatusPembayaran,
+    getStudioSchedule
 } from '../controller/bookingController.mjs';
 
 const router = express.Router();
@@ -15,5 +16,6 @@ router.get('/track/:kode', lacakBooking);   // GET http://localhost:3000/api/boo
 // Route untuk Admin
 router.get('/', getSemuaBooking);           // GET http://localhost:3000/api/booking
 router.put('/:id/status', updateStatusPembayaran); // PUT http://localhost:3000/api/booking/1/status
+router.get('/studio/:studioId/schedule', getStudioSchedule); // GET http://localhost:3000/api/booking/studio/1/schedule
 
 export default router;

@@ -1,4 +1,24 @@
 import Studio from '../model/studioModel.mjs';
+import path from 'path';
+import fs from 'fs';
+import multer from 'multer';
+
+// Konfigurasi Multer untuk penyimpanan file gambar fisik
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const uploadDir = path.join(process.cwd(), '../frontend/public/studio/');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'studio-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+export const upload = multer({ storage: storage });
 
 // 1. Ambil Semua Data Studio
 export const getSemuaStudio = async (req, res) => {
@@ -28,22 +48,24 @@ export const getStudioById = async (req, res) => {
     }
 };
 
-// 3. Tambah Studio Baru (Create)
+// 3. Tambah Studio Baru (Create dengan File Upload)
 export const tambahStudio = async (req, res) => {
     try {
-        const { name, description, capacity, price_per_hour, image_url } = req.body;
+        const { name, description, capacity, price_per_hour } = req.body;
 
-        // Validasi input sederhana
         if (!name || !capacity || !price_per_hour) {
             return res.status(400).json({ message: 'Nama, kapasitas, dan harga per jam wajib diisi!' });
         }
+
+        // Ambil nama file dari hasil upload multer, jika tidak ada gunakan default
+        const image_url = req.file ? req.file.filename : 'default-studio.jpg';
 
         const newStudioId = await Studio.create({
             name,
             description: description || '',
             capacity,
             price_per_hour,
-            image_url: image_url || 'default-studio.jpg'
+            image_url
         });
 
         res.status(201).json({
@@ -52,7 +74,8 @@ export const tambahStudio = async (req, res) => {
                 id: newStudioId,
                 name,
                 capacity,
-                price_per_hour
+                price_per_hour,
+                image_url
             }
         });
     } catch (error) {
@@ -61,23 +84,26 @@ export const tambahStudio = async (req, res) => {
     }
 };
 
-// 4. Update Data Studio
+// 4. Update Data Studio (Support Ganti Gambar)
 export const updateStudio = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, description, capacity, price_per_hour, image_url, status } = req.body;
+        const { name, description, capacity, price_per_hour, status } = req.body;
 
         const studioExist = await Studio.getById(id);
         if (!studioExist) {
             return res.status(404).json({ message: `Studio dengan ID ${id} tidak ditemukan` });
         }
 
+        // Jika ada file baru yang di-upload, gunakan file baru. Jika tidak, tetap gunakan gambar lama.
+        const image_url = req.file ? req.file.filename : studioExist.image_url;
+
         await Studio.update(id, {
             name: name || studioExist.name,
             description: description !== undefined ? description : studioExist.description,
             capacity: capacity || studioExist.capacity,
             price_per_hour: price_per_hour || studioExist.price_per_hour,
-            image_url: image_url || studioExist.image_url,
+            image_url: image_url,
             status: status || studioExist.status
         });
 
@@ -98,6 +124,14 @@ export const hapusStudio = async (req, res) => {
             return res.status(404).json({ message: `Studio dengan ID ${id} tidak ditemukan` });
         }
 
+        // Opsional: Hapus file fisik gambar dari folder public/studio
+        if (studioExist.image_url && studioExist.image_url !== 'default-studio.jpg') {
+            const filePath = path.join(process.cwd(), '../frontend/public/studio/', studioExist.image_url);
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+            }
+        }
+
         await Studio.delete(id);
         res.status(200).json({ message: `Studio dengan ID ${id} berhasil dihapus!` });
     } catch (error) {
@@ -106,7 +140,7 @@ export const hapusStudio = async (req, res) => {
     }
 };
 
-// Contoh penyesuaian di controller backend studio
+// Filter Pencarian Studio
 export const getStudios = async (req, res) => {
     try {
         const { search, capacity } = req.query;

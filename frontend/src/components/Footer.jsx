@@ -1,20 +1,40 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom'; // 1. Import useNavigate
+import API from '../services/api';
 
 export default function Footer() {
-    const [showLoginModal, setShowLoginModal] = useState(false);
+    const [isModalOpen, setIsModalOpen] = useState(false);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
-    const navigate = useNavigate();
+    const [loading, setLoading] = useState(false);
+    const [errorMsg, setErrorMsg] = useState('');
 
-    const handleAdminLogin = (e) => {
+    const navigate = useNavigate(); // 2. Inisialisasi navigate
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        // Login sederhana untuk demo Tugas Akhir
-        if (username === 'admin' && password === 'admin123') {
-            setShowLoginModal(false);
+        setLoading(true);
+        setErrorMsg('');
+
+        try {
+            const response = await API.post('/admin/login', { username, password });
+
+            // Simpan info session login di localStorage
+            localStorage.setItem('adminToken', 'true');
+            localStorage.setItem('adminUser', JSON.stringify(response.data.admin));
+
+            setLoading(false);
+            setIsModalOpen(false);
+
+            // 3. Langsung arahkan ke halaman admin dashboard!
             navigate('/admin');
-        } else {
-            alert('Username atau Password Admin salah!');
+        } catch (err) {
+            setLoading(false);
+            if (err.response && err.response.data && err.response.data.message) {
+                setErrorMsg(err.response.data.message);
+            } else {
+                setErrorMsg('Terjadi kesalahan jaringan atau server.');
+            }
         }
     };
 
@@ -22,13 +42,13 @@ export default function Footer() {
         <footer className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 py-8 transition-colors">
             <div className="max-w-7xl mx-auto px-4 text-center text-sm text-gray-500 dark:text-gray-400">
                 <p className="mb-2 font-semibold text-gray-700 dark:text-gray-300">
-                    © {new Date().getFullYear()} StudioFoto Manager. All rights reserved.
+                    © {new Date().getFullYear()} Capture Studio. All rights reserved.
                 </p>
                 <div className="flex justify-center items-center gap-4 text-xs mt-3">
-                    <span>Sistem Pemesanan Studio Foto Tugas Akhir</span>
+                    <span>Capture Studio</span>
                     <span>•</span>
                     <button
-                        onClick={() => setShowLoginModal(true)}
+                        onClick={() => setIsModalOpen(true)}
                         className="text-indigo-600 dark:text-indigo-400 hover:underline font-semibold cursor-pointer"
                     >
                         🔐 Akses Admin
@@ -37,13 +57,21 @@ export default function Footer() {
             </div>
 
             {/* Modal Login Admin */}
-            {showLoginModal && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl max-w-md w-full p-6 shadow-2xl">
-                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Login Admin</h2>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-6">Masuk untuk mengelola data booking dan studio.</p>
+            {isModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+                    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 sm:p-8 w-full max-w-md shadow-2xl space-y-6 text-left">
+                        <div>
+                            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Login Admin</h3>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Masuk untuk mengelola data booking dan studio.</p>
+                        </div>
 
-                        <form onSubmit={handleAdminLogin} className="space-y-4">
+                        {errorMsg && (
+                            <div className="bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-800 p-3.5 rounded-2xl text-xs font-medium">
+                                {errorMsg}
+                            </div>
+                        )}
+
+                        <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
                                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
                                 <input
@@ -51,10 +79,11 @@ export default function Footer() {
                                     required
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
+                                    className="w-full px-4 py-3 rounded-2xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                                     placeholder="Masukkan username"
-                                    className="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
                             </div>
+
                             <div>
                                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
                                 <input
@@ -62,24 +91,25 @@ export default function Footer() {
                                     required
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="Masukkan password"
-                                    className="w-full px-4 py-2 text-sm border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    className="w-full px-4 py-3 rounded-2xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                                    placeholder="••••••••"
                                 />
                             </div>
 
-                            <div className="flex gap-3 pt-2">
+                            <div className="pt-2 flex gap-3">
                                 <button
                                     type="button"
-                                    onClick={() => setShowLoginModal(false)}
-                                    className="flex-1 bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 py-2.5 rounded-xl text-sm font-medium cursor-pointer"
+                                    onClick={() => setIsModalOpen(false)}
+                                    className="flex-1 py-3 px-4 rounded-2xl border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-100 dark:hover:bg-gray-800 transition cursor-pointer"
                                 >
                                     Batal
                                 </button>
                                 <button
                                     type="submit"
-                                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-sm font-medium shadow-md cursor-pointer"
+                                    disabled={loading}
+                                    className="flex-1 py-3 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition shadow-md cursor-pointer disabled:bg-gray-400"
                                 >
-                                    Masuk
+                                    {loading ? 'Memproses...' : 'Masuk'}
                                 </button>
                             </div>
                         </form>

@@ -14,20 +14,24 @@ export default function BookingForm() {
         customer_email: '',
         customer_phone: '',
         booking_date: '',
-        start_time: '10:00',
-        end_time: '12:00'
     });
+
+    // State untuk manajemen slot waktu ala bioskop
+    const [bookedSlots, setBookedSlots] = useState([]); // Daftar jam yang sudah terisi dari database
+    const [selectedSlots, setSelectedSlots] = useState([]); // Daftar jam yang diklik/dipilih user
 
     const [loadingBooking, setLoadingBooking] = useState(false);
     const [errorMessage, setErrorMessage] = useState(null);
     const [successData, setSuccessData] = useState(null);
 
+    // Daftar master jam operasional studio
     const timeSlots = [
         '08:00', '09:00', '10:00', '11:00', '12:00',
         '13:00', '14:00', '15:00', '16:00', '17:00',
         '18:00', '19:00', '20:00', '21:00', '22:00'
     ];
 
+    // 1. Ambil Detail Studio
     useEffect(() => {
         const fetchStudioDetail = async () => {
             try {
@@ -40,9 +44,24 @@ export default function BookingForm() {
                 setLoadingStudio(false);
             }
         };
-
         fetchStudioDetail();
     }, [studioId]);
+
+    // 2. Ambil Jadwal Terisi saat Tanggal Berubah
+    useEffect(() => {
+        const fetchSchedule = async () => {
+            if (!formData.booking_date) return;
+            try {
+                const response = await API.get(`/booking/schedule/${studioId}?date=${formData.booking_date}`);
+                setBookedSlots(response.data);
+                setSelectedSlots([]); // Reset pilihan jam jika tanggal diganti
+            } catch (err) {
+                console.error('Gagal memuat jadwal studio:', err);
+            }
+        };
+
+        fetchSchedule();
+    }, [formData.booking_date, studioId]);
 
     const handleChange = (e) => {
         setFormData({
@@ -51,15 +70,77 @@ export default function BookingForm() {
         });
     };
 
+    // Fungsi cek apakah suatu jam tertentu sudah masuk dalam rentang booking orang lain
+    const isSlotBooked = (time) => {
+        if (!bookedSlots || bookedSlots.length === 0) return false;
+
+        return bookedSlots.some(booking => {
+            // Ambil string jam mulai & selesai (pastikan ambil 5 karakter pertama "HH:MM")
+            const startTimeStr = booking.start_time ? booking.start_time.slice(0, 5) : '';
+            const endTimeStr = booking.end_time ? booking.end_time.slice(0, 5) : '';
+
+            if (!startTimeStr || !endTimeStr) return false;
+
+            const [timeH, timeM] = time.split(':').map(Number);
+            const [startH, startM] = startTimeStr.split(':').map(Number);
+            const [endH, endM] = endTimeStr.split(':').map(Number);
+
+            const timeTotal = timeH * 60 + timeM;
+            const startTotal = startH * 60 + startM;
+            const endTotal = endH * 60 + endM;
+
+            // Jika jam berada di dalam rentang yang sudah dibooking
+            return timeTotal >= startTotal && timeTotal < endTotal;
+        });
+    };
+
+    // Handler ketika user mengklik kotak jam (Sistem Bioskop)
+    const handleSlotClick = (time) => {
+        if (isSlotBooked(time)) return;
+
+        if (selectedSlots.includes(time)) {
+            // Jika diklik lagi, batalkan pilihan
+            setSelectedSlots(selectedSlots.filter(t => t !== time).sort());
+        } else {
+            // Batasi maksimal pemesanan 4 jam
+            if (selectedSlots.length >= 4) {
+                alert('Maksimal pemesanan adalah 4 jam dalam sekali booking.');
+                return;
+            }
+            const newSelected = [...selectedSlots, time].sort();
+            setSelectedSlots(newSelected);
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoadingBooking(true);
         setErrorMessage(null);
 
+        if (selectedSlots.length === 0) {
+            setErrorMessage('Silakan pilih minimal 1 slot jam sewa studio terlebih dahulu.');
+            setLoadingBooking(false);
+            return;
+        }
+
+        // Tentukan jam mulai (slot paling awal) dan jam selesai (slot terakhir + 1 jam)
+        const startTime = selectedSlots[0];
+        const lastSlot = selectedSlots[selectedSlots.length - 1];
+
+        // Logika konversi jam selesai sederhana (tambah 1 jam dari slot terakhir)
+        const [hour, minute] = lastSlot.split(':');
+        const endHour = String(Number(hour) + 1).padStart(2, '0');
+        const endTime = `${endHour}:${minute}`;
+
         try {
             const payload = {
                 studio_id: Number(studioId),
-                ...formData
+                customer_name: formData.customer_name,
+                customer_email: formData.customer_email,
+                customer_phone: formData.customer_phone,
+                booking_date: formData.booking_date,
+                start_time: startTime,
+                end_time: endTime
             };
 
             const response = await API.post('/booking', payload);
@@ -76,13 +157,9 @@ export default function BookingForm() {
         }
     };
 
-    // Fungsi untuk mengarahkan ke WhatsApp Admin dengan format pesan otomatis
     const handleOpenWhatsApp = () => {
         if (!successData) return;
-
-        // Nomor WhatsApp Admin (Ganti dengan nomor WhatsApp studio Anda, gunakan awalan 62)
         const adminPhone = '6289673309449';
-
         const message =
             `Halo Admin StudioFoto Manager, saya ingin mengkonfirmasi pesanan sewa studio saya:\n\n` +
             `*Kode Booking:* ${successData.booking_code}\n` +
@@ -150,7 +227,6 @@ export default function BookingForm() {
                             <p><strong>Total Biaya:</strong> <span className="text-indigo-600 dark:text-indigo-400 font-bold">Rp {Number(successData.total_price).toLocaleString('id-ID')}</span></p>
                         </div>
 
-                        {/* Tombol Aksi WhatsApp & Kembali */}
                         <div className="flex flex-col sm:flex-row gap-3 justify-center">
                             <button
                                 onClick={handleOpenWhatsApp}
@@ -216,50 +292,75 @@ export default function BookingForm() {
                             />
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div>
-                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Tanggal Sewa</label>
-                                <input
-                                    type="date"
-                                    name="booking_date"
-                                    required
-                                    value={formData.booking_date}
-                                    onChange={handleChange}
-                                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm dark:[color-scheme:dark]"
-                                />
-                            </div>
+                        <div>
+                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Pilih Tanggal Sewa Terlebih Dahulu</label>
+                            <input
+                                type="date"
+                                name="booking_date"
+                                required
+                                value={formData.booking_date}
+                                onChange={handleChange}
+                                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm dark:[color-scheme:dark]"
+                            />
+                        </div>
 
-                            <div>
-                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Jam Mulai</label>
-                                <select
-                                    name="start_time"
-                                    value={formData.start_time}
-                                    onChange={handleChange}
-                                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm cursor-pointer"
-                                >
-                                    {timeSlots.map((time) => (
-                                        <option key={time} value={time} className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
-                                            {time} WIB
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
+                        <div className="space-y-3 pt-2">
+                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                                Pilih Jam / Slot Sewa Studio (Sistem Bioskop)
+                            </label>
 
-                            <div>
-                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Jam Selesai</label>
-                                <select
-                                    name="end_time"
-                                    value={formData.end_time}
-                                    onChange={handleChange}
-                                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm cursor-pointer"
-                                >
-                                    {timeSlots.map((time) => (
-                                        <option key={time} value={time} className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
-                                            {time} WIB
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
+                            {!formData.booking_date ? (
+                                <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 p-3 rounded-xl border border-amber-200 dark:border-amber-900">
+                                    ⚠️ Silakan pilih tanggal sewa terlebih dahulu untuk melihat ketersediaan jam studio.
+                                </p>
+                            ) : (
+                                <div>
+                                    {/* Indikator Status Warna */}
+                                    <div className="flex items-center gap-4 text-xs mb-3 text-gray-600 dark:text-gray-400">
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-3 h-3 rounded-md bg-emerald-500"></div>
+                                            <span>Tersedia (Kosong)</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-3 h-3 rounded-md bg-indigo-600"></div>
+                                            <span>Dipilih (Selected)</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-3 h-3 rounded-md bg-red-600"></div>
+                                            <span>Terpakai (Booked)</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Grid Kotak Slot Waktu (Menampilkan Semua Jam, yang terisi berubah jadi merah & disabled) */}
+                                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-2.5">
+                                        {timeSlots.map((time) => {
+                                            const isBooked = isSlotBooked(time);
+                                            const isSelected = selectedSlots.includes(time);
+
+                                            return (
+                                                <button
+                                                    key={time}
+                                                    type="button"
+                                                    disabled={isBooked}
+                                                    onClick={() => handleSlotClick(time)}
+                                                    className={`py-3 px-2 rounded-2xl text-xs font-bold transition flex flex-col items-center justify-center gap-1 ${
+                                                        isBooked
+                                                            ? 'bg-red-600 text-white border border-red-700 cursor-not-allowed opacity-90 shadow-sm'
+                                                            : isSelected
+                                                                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30 scale-95 ring-2 ring-indigo-400 cursor-pointer'
+                                                                : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 cursor-pointer'
+                                                    }`}
+                                                >
+                                                    <span>{time}</span>
+                                                    <span className="text-[9px] font-normal uppercase opacity-90">
+                                {isBooked ? 'Terpakai' : isSelected ? 'Dipilih' : 'Tersedia'}
+                            </span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="pt-4 flex items-center justify-between border-t border-gray-200 dark:border-gray-800">
@@ -273,10 +374,10 @@ export default function BookingForm() {
 
                             <button
                                 type="submit"
-                                disabled={loadingBooking}
+                                disabled={loadingBooking || selectedSlots.length === 0}
                                 className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-8 py-3 rounded-2xl transition shadow-md cursor-pointer disabled:bg-gray-400 text-sm"
                             >
-                                {loadingBooking ? 'Memproses...' : 'Konfirmasi Booking'}
+                                {loadingBooking ? 'Memproses...' : `Konfirmasi Booking (${selectedSlots.length} Jam)`}
                             </button>
                         </div>
                     </form>

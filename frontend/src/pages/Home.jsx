@@ -121,10 +121,11 @@ export default function Home() {
                                 <div>
                                     <div className="h-52 w-full bg-gray-200 dark:bg-gray-800 relative">
                                         <img
-                                            src={`/images/${studio.image_url}`}
+                                            src={`/studio/${studio.image_url}`}
                                             alt={studio.name}
                                             className="w-full h-full object-cover"
                                             onError={(e) => {
+                                                // Fallback jika gambar gagal dimuat / salah ketik nama file
                                                 e.target.onerror = null;
                                                 e.target.src = 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=500';
                                             }}

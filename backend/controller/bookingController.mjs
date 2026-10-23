@@ -123,3 +123,36 @@ export const updateStatusPembayaran = async (req, res) => {
         res.status(500).json({ error: 'Terjadi kesalahan pada server' });
     }
 };
+
+export const getStudioSchedule = async (req, res) => {
+    try {
+        const { studioId } = req.params;
+        const { date } = req.query;
+
+        console.log("Menerima request jadwal untuk Studio ID:", studioId, "Tanggal:", date);
+
+        if (!date) {
+            return res.status(400).json({ message: 'Parameter tanggal wajib diisi!' });
+        }
+
+        const query = `
+            SELECT start_time, end_time, payment_status
+            FROM bookings
+            WHERE studio_id = ? AND booking_date = ? AND payment_status != 'canceled'
+        `;
+        const [rows] = await db.query(query, [studioId, date]);
+
+        console.log("Data booking ditemukan di DB:", rows); // Cek terminal backend Anda saat tanggal dipilih!
+
+        const formattedRows = rows.map(item => ({
+            start_time: typeof item.start_time === 'string' ? item.start_time.slice(0, 5) : item.start_time,
+            end_time: typeof item.end_time === 'string' ? item.end_time.slice(0, 5) : item.end_time,
+            payment_status: item.payment_status
+        }));
+
+        res.status(200).json(formattedRows);
+    } catch (error) {
+        console.error('Error fetching studio schedule:', error);
+        res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+};
