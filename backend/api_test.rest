@@ -1,0 +1,58 @@
+### 1. Ambil semua data studio
+GET http://localhost:3000/api/studio
+
+### 2. Ambil studio berdasarkan ID
+GET http://localhost:3000/api/studio/1
+
+### 3. Tambah studio baru
+POST http://localhost:3000/api/studio
+Content-Type: application/json
+
+{
+  "name": "Studio C - Green Screen",
+  "description": "Studio khusus produksi video dan visual effect dengan pencahayaan profesional.",
+  "capacity": 10,
+  "price_per_hour": 250000,
+  "image_url": "studio-c.jpg"
+}
+
+### 4. Merubah data studio
+PUT http://localhost:3000/api/studio/1
+Content-Type: application/json
+
+{
+  "name": "Studio A - Minimalist Premium",
+  "price_per_hour": 175000,
+  "status": "active"
+}
+
+### 5. Menghapus data studio
+DELETE http://localhost:3000/api/studio/3
+
+### 6. Buat Booking Baru (Klien)
+POST http://localhost:3000/api/booking
+Content-Type: application/json
+
+{
+  "studio_id": 1,
+  "customer_name": "Julham Septian",
+  "customer_email": "julham@gmail.com",
+  "customer_phone": "081234567890",
+  "booking_date": "2026-06-10",
+  "start_time": "10:00",
+  "end_time": "12:00"
+}
+
+### 7. Lacak Status Pesanan Berdasarkan Kode Resi (Ganti STO-xxxxxx sesuai hasil response di atas)
+GET http://localhost:3000/api/booking/track/STO-745299
+
+### 8. Ambil Semua Daftar Booking (Admin)
+GET http://localhost:3000/api/booking
+
+### 9. Verifikasi / Ubah Status Pembayaran oleh Admin (Ubah ID & status jadi confirmed)
+PUT http://localhost:3000/api/booking/1/status
+Content-Type: application/json
+
+{
+  "payment_status": "confirmed"
+}

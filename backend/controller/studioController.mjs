@@ -1,0 +1,132 @@
+import Studio from '../model/studioModel.mjs';
+
+// 1. Ambil Semua Data Studio
+export const getSemuaStudio = async (req, res) => {
+    try {
+        const studio = await Studio.getAll();
+        res.status(200).json(studio);
+    } catch (error) {
+        console.error('Error fetching studio:', error);
+        res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+};
+
+// 2. Ambil Detail Studio Berdasarkan ID
+export const getStudioById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const studio = await Studio.getById(id);
+
+        if (!studio) {
+            return res.status(404).json({ message: `Studio dengan ID ${id} tidak ditemukan` });
+        }
+
+        res.status(200).json(studio);
+    } catch (error) {
+        console.error('Error fetching studio by id:', error);
+        res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+};
+
+// 3. Tambah Studio Baru (Create)
+export const tambahStudio = async (req, res) => {
+    try {
+        const { name, description, capacity, price_per_hour, image_url } = req.body;
+
+        // Validasi input sederhana
+        if (!name || !capacity || !price_per_hour) {
+            return res.status(400).json({ message: 'Nama, kapasitas, dan harga per jam wajib diisi!' });
+        }
+
+        const newStudioId = await Studio.create({
+            name,
+            description: description || '',
+            capacity,
+            price_per_hour,
+            image_url: image_url || 'default-studio.jpg'
+        });
+
+        res.status(201).json({
+            message: 'Studio berhasil ditambahkan!',
+            data: {
+                id: newStudioId,
+                name,
+                capacity,
+                price_per_hour
+            }
+        });
+    } catch (error) {
+        console.error('Error adding studio:', error);
+        res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+};
+
+// 4. Update Data Studio
+export const updateStudio = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, description, capacity, price_per_hour, image_url, status } = req.body;
+
+        const studioExist = await Studio.getById(id);
+        if (!studioExist) {
+            return res.status(404).json({ message: `Studio dengan ID ${id} tidak ditemukan` });
+        }
+
+        await Studio.update(id, {
+            name: name || studioExist.name,
+            description: description !== undefined ? description : studioExist.description,
+            capacity: capacity || studioExist.capacity,
+            price_per_hour: price_per_hour || studioExist.price_per_hour,
+            image_url: image_url || studioExist.image_url,
+            status: status || studioExist.status
+        });
+
+        res.status(200).json({ message: 'Data studio berhasil diperbarui!' });
+    } catch (error) {
+        console.error('Error updating studio:', error);
+        res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+};
+
+// 5. Hapus Studio (Delete)
+export const hapusStudio = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const studioExist = await Studio.getById(id);
+        if (!studioExist) {
+            return res.status(404).json({ message: `Studio dengan ID ${id} tidak ditemukan` });
+        }
+
+        await Studio.delete(id);
+        res.status(200).json({ message: `Studio dengan ID ${id} berhasil dihapus!` });
+    } catch (error) {
+        console.error('Error deleting studio:', error);
+        res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+    }
+};
+
+// Contoh penyesuaian di controller backend studio
+export const getStudios = async (req, res) => {
+    try {
+        const { search, capacity } = req.query;
+        let query = 'SELECT * FROM studios WHERE 1=1';
+        let params = [];
+
+        if (search) {
+            query += ' AND (name LIKE ? OR description LIKE ?)';
+            params.push(`%${search}%`, `%${search}%`);
+        }
+
+        if (capacity) {
+            query += ' AND capacity >= ?';
+            params.push(Number(capacity));
+        }
+
+        const [rows] = await db.query(query, params);
+        res.json(rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Gagal mengambil data studio' });
+    }
+};
