@@ -14,8 +14,8 @@ router.post('/', buatBooking);              // POST http://localhost:3000/api/bo
 router.get('/track/:kode', lacakBooking);   // GET http://localhost:3000/api/booking/track/STO-123456
 
 // Route untuk Admin
-router.get('/', getSemuaBooking);           // GET http://localhost:3000/api/booking
-router.put('/:id/status', updateStatusPembayaran); // PUT http://localhost:3000/api/booking/1/status
-router.get('/studio/:studioId/schedule', getStudioSchedule); // GET http://localhost:3000/api/booking/studio/1/schedule
+router.get('/', getSemuaBooking);
+router.put('/:id/status', updateStatusPembayaran);
+router.get('/studio/:studioId/schedule', getStudioSchedule);
 
 export default router;

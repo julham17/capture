@@ -1,16 +1,23 @@
 import Studio from '../model/studioModel.mjs';
 import path from 'path';
 import fs from 'fs';
+import db from '../config/db.mjs';
 import multer from 'multer';
+import { fileURLToPath } from 'url';
+
+const controllerDirectory = path.dirname(fileURLToPath(import.meta.url));
+const studioImageDirectory = path.resolve(
+    controllerDirectory,
+    '../../frontend/public/studio'
+);
 
 // Konfigurasi Multer untuk penyimpanan file gambar fisik
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const uploadDir = path.join(process.cwd(), '../frontend/public/studio/');
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
+        if (!fs.existsSync(studioImageDirectory)) {
+            fs.mkdirSync(studioImageDirectory, { recursive: true });
         }
-        cb(null, uploadDir);
+        cb(null, studioImageDirectory);
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -126,7 +133,7 @@ export const hapusStudio = async (req, res) => {
 
         // Opsional: Hapus file fisik gambar dari folder public/studio
         if (studioExist.image_url && studioExist.image_url !== 'default-studio.jpg') {
-            const filePath = path.join(process.cwd(), '../frontend/public/studio/', studioExist.image_url);
+            const filePath = path.join(studioImageDirectory, studioExist.image_url);
             if (fs.existsSync(filePath)) {
                 fs.unlinkSync(filePath);
             }

@@ -1,11 +1,16 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { Search, AlertCircle, Clock, User, Building2, CalendarDays, Copy, Check, MessageCircle, Sparkles, ArrowLeft, RotateCcw, FileDown } from 'lucide-react';
 import API from '../services/api';
+import { generateReceiptPDF } from '../utils/generateReceiptPDF';
+import ReceiptModal from './ReceiptModal';
 
 export default function TrackBooking() {
     const [bookingCode, setBookingCode] = useState('');
     const [bookingData, setBookingData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [copied, setCopied] = useState(false);
+    const [showReceiptModal, setShowReceiptModal] = useState(false);
 
     const handleTrack = async (e) => {
         e.preventDefault();
@@ -23,103 +28,344 @@ export default function TrackBooking() {
             console.error('Gagal melacak booking:', err);
             setLoading(false);
             if (err.response && err.response.status === 404) {
-                setError('Kode booking tidak ditemukan. Periksa kembali resi Anda.');
+                setError('Kode reservasi tidak ditemukan dalam sistem. Mohon periksa kembali ejaan kode resi Anda.');
             } else {
-                setError('Terjadi kesalahan pada server. Coba beberapa saat lagi.');
+                setError('Terjadi kendala saat menghubungi server. Silakan coba kembali beberapa saat lagi.');
             }
         }
     };
 
-    const getStatusBadge = (status) => {
+    // Tombol Kembali / Reset Lacak
+    const handleReset = () => {
+        setBookingData(null);
+        setError(null);
+        setBookingCode('');
+    };
+
+    const handleCopy = () => {
+        if (!bookingData?.booking_code) return;
+        navigator.clipboard.writeText(bookingData.booking_code);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    const getStatusConfig = (status) => {
         switch (status) {
             case 'confirmed':
-                return <span className="bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 px-3 py-1 rounded-full text-xs font-bold">CONFIRMED (Dikonfirmasi)</span>;
-            case 'canceled':
-                return <span className="bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 px-3 py-1 rounded-full text-xs font-bold">CANCELED (Dibatalkan)</span>;
+                return {
+                    label: 'Terkonfirmasi & Siap',
+                    badgeCls: 'bg-emerald-950/70 text-emerald-400 border-emerald-600/60 shadow-[0_0_15px_rgba(16,185,129,0.2)]',
+                    dotCls: 'bg-emerald-400 animate-pulse',
+                    step: 2,
+                    desc: 'Jadwal studio telah diproteksi khusus untuk Anda.',
+                };
             case 'completed':
-                return <span className="bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 px-3 py-1 rounded-full text-xs font-bold">COMPLETED (Selesai)</span>;
+                return {
+                    label: 'Sesi Telah Selesai',
+                    badgeCls: 'bg-sky-950/70 text-sky-400 border-sky-600/60',
+                    dotCls: 'bg-sky-400',
+                    step: 3,
+                    desc: 'Terima kasih telah berkarya bersama atelier Capture.',
+                };
+            case 'canceled':
+                return {
+                    label: 'Dibatalkan',
+                    badgeCls: 'bg-red-950/70 text-red-400 border-red-600/60',
+                    dotCls: 'bg-red-400',
+                    step: 0,
+                    desc: 'Reservasi ini telah dibatalkan atau kedaluwarsa.',
+                };
             default:
-                return <span className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300 px-3 py-1 rounded-full text-xs font-bold">PENDING (Menunggu)</span>;
+                return {
+                    label: 'Menunggu Verifikasi',
+                    badgeCls: 'bg-amber-950/70 text-amber-300 border-amber-600/60 shadow-[0_0_15px_rgba(245,158,11,0.15)]',
+                    dotCls: 'bg-amber-400 animate-ping',
+                    step: 1,
+                    desc: 'Silakan konfirmasi bukti transfer via WhatsApp concierge.',
+                };
         }
     };
 
+    const handleWhatsAppConfirm = () => {
+        if (!bookingData) return;
+        const adminPhone = '6289673309449';
+        const message =
+            `Halo Admin Capture Atelier, saya ingin menanyakan status pembayaran reservasi saya:\n\n` +
+            `*Kode Resi:* ${bookingData.booking_code}\n` +
+            `*Nama Pemesan:* ${bookingData.customer_name}\n` +
+            `*Studio:* ${bookingData.studio_name}\n` +
+            `*Jadwal:* ${bookingData.booking_date?.split('T')[0]} (${bookingData.start_time} - ${bookingData.end_time} WIB)\n` +
+            `*Total:* Rp ${Number(bookingData.total_price).toLocaleString('id-ID')}\n\n` +
+            `Mohon bantuannya untuk memverifikasi. Terima kasih!`;
+        window.open(`https://wa.me/${adminPhone}?text=${encodeURIComponent(message)}`, '_blank');
+    };
+
     return (
-        <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-xl border border-gray-200 dark:border-gray-800 p-8 sm:p-12 transition-colors duration-200">
-            <div className="text-center max-w-xl mx-auto mb-8">
-                <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white mb-2">
-                    Lacak Status Pesanan
-                </h2>
-                <p className="text-gray-500 dark:text-gray-400 text-sm">
-                    Masukkan kode booking (resi) Anda untuk melihat status sewa studio secara real-time.
+        <div className="relative bg-[#0d0d12]/90 border border-[#D4AF37]/30 rounded-3xl p-6 sm:p-12 shadow-[0_20px_50px_rgba(0,0,0,0.8),0_0_30px_rgba(212,175,55,0.08)] backdrop-blur-xl overflow-hidden">
+            
+            {/* Viewfinder Decorative Accents */}
+            <span className="absolute top-4 left-4 w-4 h-4 border-t-2 border-l-2 border-[#D4AF37]/50 pointer-events-none" />
+            <span className="absolute top-4 right-4 w-4 h-4 border-t-2 border-r-2 border-[#D4AF37]/50 pointer-events-none" />
+            <span className="absolute bottom-4 left-4 w-4 h-4 border-b-2 border-l-2 border-[#D4AF37]/50 pointer-events-none" />
+            <span className="absolute bottom-4 right-4 w-4 h-4 border-b-2 border-r-2 border-[#D4AF37]/50 pointer-events-none" />
+
+            {/* Header */}
+            <div className="text-center max-w-xl mx-auto mb-10">
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl border border-[#D4AF37]/40 bg-gradient-to-br from-[#D4AF37]/20 to-black/60 text-[#D4AF37] mb-5 shadow-[0_0_25px_rgba(212,175,55,0.2)]">
+                    <Search size={22} strokeWidth={1.75} />
+                </div>
+                <h3 className="font-display text-2xl sm:text-3xl font-bold text-white tracking-wider mb-2">
+                    Lacak Status Reservasi
+                </h3>
+                <p className="text-neutral-400 text-xs sm:text-sm tracking-wide leading-relaxed font-light">
+                    Ketik kode unik resi reservasi (contoh: <span className="text-[#D4AF37] font-mono font-medium">STO-123456</span>) untuk memeriksa status jadwal pemotretan Anda secara seketika.
                 </p>
             </div>
 
-            {/* Form Input Lacak */}
-            <form onSubmit={handleTrack} className="max-w-xl mx-auto flex flex-col sm:flex-row gap-3 mb-8">
-                <input
-                    type="text"
-                    required
-                    placeholder="CONTOH: STO-123456"
-                    value={bookingCode}
-                    onChange={(e) => setBookingCode(e.target.value)}
-                    className="flex-1 px-4 py-3.5 border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white rounded-2xl focus:ring-2 focus:ring-indigo-500 focus:outline-none uppercase font-bold tracking-wider text-sm"
-                />
-                <button
-                    type="submit"
-                    disabled={loading}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-8 py-3.5 rounded-2xl transition shadow-md cursor-pointer disabled:bg-gray-400"
-                >
-                    {loading ? 'Mencari...' : 'Cek Status'}
-                </button>
-            </form>
+            {/* Input Form — Tampil jika belum ada data pesanan yang dipilih */}
+            {!bookingData && (
+                <form onSubmit={handleTrack} className="max-w-xl mx-auto flex flex-col sm:flex-row gap-3 mb-8">
+                    <div className="relative flex-1">
+                        <input
+                            type="text"
+                            required
+                            placeholder="MASUKKAN KODE RESI"
+                            value={bookingCode}
+                            onChange={(e) => setBookingCode(e.target.value)}
+                            className="w-full bg-[#15151c] border border-neutral-700/80 focus:border-[#D4AF37] focus:ring-1 focus:ring-[#D4AF37]/40 text-white uppercase tracking-[0.25em] font-mono rounded-xl py-4 px-5 text-sm placeholder-neutral-500 focus:outline-none transition-all duration-200"
+                        />
+                    </div>
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="py-4 px-8 rounded-xl bg-gradient-to-r from-[#ECC876] via-[#D4AF37] to-[#9B7D23] text-black font-bold text-xs tracking-widest uppercase transition-all duration-300 hover:shadow-[0_0_25px_rgba(212,175,55,0.4)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
+                    >
+                        {loading ? (
+                            <span className="flex items-center gap-2 justify-center">
+                                <span className="w-4 h-4 rounded-full border-2 border-black/30 border-t-black animate-spin" />
+                                Melacak...
+                            </span>
+                        ) : (
+                            'Periksa Resi'
+                        )}
+                    </button>
+                </form>
+            )}
 
-            {/* Pesan Error */}
+            {/* Error Notification dengan Tombol Kembali / Coba Lagi */}
             {error && (
-                <div className="max-w-xl mx-auto bg-red-100 border border-red-400 text-red-700 dark:bg-red-900/50 dark:text-red-300 px-4 py-3 rounded-2xl text-sm mb-6 text-center">
-                    {error}
+                <div className="max-w-xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-red-950/50 border border-red-800/60 text-red-300 px-5 py-4 rounded-xl text-xs sm:text-sm mb-8 animate-fadeIn">
+                    <div className="flex items-start gap-2.5">
+                        <AlertCircle size={16} className="mt-0.5 shrink-0 text-red-400" />
+                        <span className="leading-relaxed">{error}</span>
+                    </div>
+                    <button
+                        onClick={handleReset}
+                        className="shrink-0 text-xs font-semibold uppercase tracking-wider text-neutral-300 hover:text-white underline cursor-pointer"
+                    >
+                        Coba Lagi
+                    </button>
                 </div>
             )}
 
-            {/* Hasil Data Pesanan */}
+            {/* Reservation Result Ticket */}
             {bookingData && (
-                <div className="max-w-xl mx-auto bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 space-y-4 shadow-sm">
-                    <div className="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-4">
+                <div className="max-w-2xl mx-auto bg-gradient-to-b from-[#14141c] to-[#0f0f15] border border-[#D4AF37]/35 rounded-2xl p-6 sm:p-8 shadow-2xl relative overflow-hidden animate-fadeIn">
+                    
+                    {/* Top Gold Foil Strip */}
+                    <div className="h-[2px] -mx-8 -mt-8 mb-6 bg-gradient-to-r from-transparent via-[#D4AF37] to-transparent" />
+
+                    {/* Tombol Kembali di Bagian Atas Tiket */}
+                    <div className="mb-6 flex items-center justify-between pb-4 border-b border-white/5">
+                        <button
+                            onClick={handleReset}
+                            className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-[0.2em] text-[#D4AF37] hover:text-[#F3E5AB] transition-colors cursor-pointer group"
+                        >
+                            <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
+                            <span>Kembali ke Pencarian Resi</span>
+                        </button>
+
+                        <button
+                            onClick={handleReset}
+                            className="inline-flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-white transition-colors cursor-pointer"
+                            title="Lacak resi lain"
+                        >
+                            <RotateCcw size={12} />
+                            <span>Cari Resi Lain</span>
+                        </button>
+                    </div>
+
+                    {/* Booking Header & Badge */}
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-white/10">
                         <div>
-                            <span className="text-xs text-gray-400 block">KODE BOOKING</span>
-                            <span className="text-xl font-black text-indigo-600 dark:text-indigo-400">{bookingData.booking_code}</span>
+                            <span className="text-[10px] tracking-[0.3em] uppercase text-neutral-400 block mb-1">
+                                Kode Reservasi Resmi
+                            </span>
+                            <div className="flex items-center gap-3">
+                                <span className="text-2xl sm:text-3xl font-mono font-bold tracking-wider text-[#D4AF37]">
+                                    {bookingData.booking_code}
+                                </span>
+                                <button
+                                    onClick={handleCopy}
+                                    className="p-1.5 rounded-lg border border-neutral-700 hover:border-[#D4AF37] text-neutral-400 hover:text-white transition-colors cursor-pointer"
+                                    title="Salin Kode"
+                                >
+                                    {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                                </button>
+                            </div>
                         </div>
+
                         <div>
-                            {getStatusBadge(bookingData.payment_status)}
+                            {(() => {
+                                const conf = getStatusConfig(bookingData.payment_status);
+                                return (
+                                    <div className={`inline-flex items-center gap-2 border px-4 py-2 rounded-full text-xs font-semibold tracking-wider uppercase ${conf.badgeCls}`}>
+                                        <span className={`w-2 h-2 rounded-full ${conf.dotCls}`} />
+                                        <span>{conf.label}</span>
+                                    </div>
+                                );
+                            })()}
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-700 dark:text-gray-300">
-                        <div>
-                            <p className="text-gray-400 text-xs">Nama Pemesan</p>
-                            <p className="font-semibold">{bookingData.customer_name}</p>
+                    {/* Status Progress Bar */}
+                    <div className="py-6 border-b border-white/10">
+                        <div className="flex justify-between items-center text-[10px] uppercase tracking-wider text-neutral-400 mb-2">
+                            <span className={bookingData.payment_status ? 'text-[#D4AF37] font-semibold' : ''}>1. Diajukan</span>
+                            <span className={['confirmed', 'completed'].includes(bookingData.payment_status) ? 'text-[#D4AF37] font-semibold' : ''}>2. Terverifikasi</span>
+                            <span className={bookingData.payment_status === 'completed' ? 'text-[#D4AF37] font-semibold' : ''}>3. Selesai</span>
                         </div>
-                        <div>
-                            <p className="text-gray-400 text-xs">Studio Pilihan</p>
-                            <p className="font-semibold">{bookingData.studio_name}</p>
-                        </div>
-                        <div>
-                            <p className="text-gray-400 text-xs">Tanggal Sewa</p>
-                            <p className="font-semibold">{bookingData.booking_date.split('T')[0]}</p>
-                        </div>
-                        <div>
-                            <p className="text-gray-400 text-xs">Waktu</p>
-                            <p className="font-semibold">{bookingData.start_time} - {bookingData.end_time} WIB</p>
+                        <div className="w-full h-1.5 bg-neutral-800 rounded-full overflow-hidden">
+                            <div
+                                className="h-full bg-gradient-to-r from-[#ECC876] to-[#D4AF37] transition-all duration-700 rounded-full"
+                                style={{
+                                    width:
+                                        bookingData.payment_status === 'completed'
+                                            ? '100%'
+                                            : bookingData.payment_status === 'confirmed'
+                                            ? '66%'
+                                            : bookingData.payment_status === 'canceled'
+                                            ? '0%'
+                                            : '33%',
+                                }}
+                            />
                         </div>
                     </div>
 
-                    <div className="border-t border-gray-200 dark:border-gray-700 pt-4 flex justify-between items-center">
-                        <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Biaya:</span>
-                        <span className="text-xl font-black text-indigo-600 dark:text-indigo-400">
-                            Rp {Number(bookingData.total_price).toLocaleString('id-ID')}
-                        </span>
+                    {/* Information Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-6 border-b border-white/10 text-sm">
+                        <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-neutral-800/80 border border-neutral-700 flex items-center justify-center text-[#D4AF37] shrink-0">
+                                <User size={15} />
+                            </div>
+                            <div>
+                                <span className="text-[10px] tracking-widest uppercase text-neutral-400 block mb-0.5">
+                                    Nama Tamu
+                                </span>
+                                <span className="text-white font-medium">
+                                    {bookingData.customer_name}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-neutral-800/80 border border-neutral-700 flex items-center justify-center text-[#D4AF37] shrink-0">
+                                <Building2 size={15} />
+                            </div>
+                            <div>
+                                <span className="text-[10px] tracking-widest uppercase text-neutral-400 block mb-0.5">
+                                    Ruangan Studio
+                                </span>
+                                <span className="text-white font-medium">
+                                    {bookingData.studio_name}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-neutral-800/80 border border-neutral-700 flex items-center justify-center text-[#D4AF37] shrink-0">
+                                <CalendarDays size={15} />
+                            </div>
+                            <div>
+                                <span className="text-[10px] tracking-widest uppercase text-neutral-400 block mb-0.5">
+                                    Tanggal Pelaksanaan
+                                </span>
+                                <span className="text-white font-medium">
+                                    {bookingData.booking_date?.split('T')[0]}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-neutral-800/80 border border-neutral-700 flex items-center justify-center text-[#D4AF37] shrink-0">
+                                <Clock size={15} />
+                            </div>
+                            <div>
+                                <span className="text-[10px] tracking-widest uppercase text-neutral-400 block mb-0.5">
+                                    Durasi Sesi
+                                </span>
+                                <span className="text-white font-medium">
+                                    {bookingData.start_time} – {bookingData.end_time} WIB
+                                </span>
+                            </div>
+                        </div>
                     </div>
+
+                    {/* Total & Action Buttons */}
+                    <div className="pt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                            <span className="text-[10px] tracking-widest uppercase text-neutral-400 block mb-1">
+                                Total Biaya Sewa
+                            </span>
+                            <span className="font-display text-2xl font-bold text-[#D4AF37] tracking-wide">
+                                Rp {Number(bookingData.total_price).toLocaleString('id-ID')}
+                            </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2.5">
+                            {/* Tombol Buka Pop-up Pratayang & Cetak Resi */}
+                            <button
+                                type="button"
+                                onClick={() => setShowReceiptModal(true)}
+                                className="px-4 py-3 rounded-xl bg-gradient-to-r from-[#ECC876] to-[#D4AF37] hover:shadow-[0_0_15px_rgba(212,175,55,0.4)] text-black text-xs font-bold tracking-wider uppercase transition-all cursor-pointer flex items-center gap-1.5"
+                                title="Buka pratayang resi dan unduh PDF"
+                            >
+                                <FileDown size={15} />
+                                <span>Cek & Cetak Resi</span>
+                            </button>
+
+                            {/* Tombol Konfirmasi WA */}
+                            <button
+                                type="button"
+                                onClick={handleWhatsAppConfirm}
+                                className="inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl border border-emerald-600/60 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/60 transition-all duration-200 text-xs font-semibold tracking-wider uppercase cursor-pointer"
+                            >
+                                <MessageCircle size={15} />
+                                <span>Konfirmasi (WA)</span>
+                            </button>
+
+                            {/* Tombol Kembali / Reset */}
+                            <button
+                                type="button"
+                                onClick={handleReset}
+                                className="px-3.5 py-3 rounded-xl border border-neutral-700 hover:border-neutral-500 text-neutral-300 hover:text-white text-xs font-semibold tracking-wider uppercase transition-colors cursor-pointer flex items-center gap-1.5"
+                            >
+                                <ArrowLeft size={13} />
+                                <span>Kembali</span>
+                            </button>
+                        </div>
+                    </div>
+
                 </div>
             )}
+
+            {/* Pop-up Modal Pratayang Resi dengan Tombol Unduh PDF */}
+            <ReceiptModal
+                isOpen={showReceiptModal}
+                onClose={() => setShowReceiptModal(false)}
+                bookingData={bookingData}
+            />
+
         </div>
     );
 }

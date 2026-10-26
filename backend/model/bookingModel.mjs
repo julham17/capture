@@ -7,7 +7,7 @@ const Booking = {
             `SELECT * FROM bookings 
              WHERE studio_id = ? 
              AND booking_date = ? 
-             AND payment_status != 'canceled' 
+             AND (payment_status IS NULL OR payment_status != 'canceled')
              AND (start_time < ? AND end_time > ?)`,
             [studioId, bookingDate, endTime, startTime]
         );
@@ -66,7 +66,33 @@ const Booking = {
             [paymentStatus, id]
         );
         return result.affectedRows;
-    }
+    },
+
+    // FIX [C3]: Moved getSchedule query from controller into model.
+    // The controller was using `db` directly without importing it — ReferenceError at runtime.
+    // Formatting (slice to HH:MM) is also done here to keep controller lean.
+    //
+    // NOTE [Mi5]: For production, add a DB-level constraint to prevent TOCTOU double-booking:
+    //   ALTER TABLE bookings ADD UNIQUE KEY uq_studio_booking (studio_id, booking_date, start_time);
+    getSchedule: async (studioId, date) => {
+        const [rows] = await db.query(
+            `SELECT start_time, end_time, payment_status
+             FROM bookings
+             WHERE studio_id = ? AND booking_date = ?
+               AND (payment_status IS NULL OR payment_status != 'canceled')`,
+            [studioId, date]
+        );
+
+        return rows.map((item) => ({
+            start_time: typeof item.start_time === 'string'
+                ? item.start_time.slice(0, 5)
+                : item.start_time,
+            end_time: typeof item.end_time === 'string'
+                ? item.end_time.slice(0, 5)
+                : item.end_time,
+            payment_status: item.payment_status,
+        }));
+    },
 };
 
 export default Booking;
