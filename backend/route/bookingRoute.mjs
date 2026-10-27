@@ -10,8 +10,8 @@ import {
 const router = express.Router();
 
 // Route untuk Klien (Public)
-router.post('/', buatBooking);              // POST http://localhost:3000/api/booking
-router.get('/track/:kode', lacakBooking);   // GET http://localhost:3000/api/booking/track/STO-123456
+router.post('/', buatBooking);        
+router.get('/track/:kode', lacakBooking);
 
 // Route untuk Admin
 router.get('/', getSemuaBooking);
